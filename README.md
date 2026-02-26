@@ -22,7 +22,15 @@ Atau langsung via Docker:
 ./langsung-pakai.sh docker
 ```
 
-Script ini akan menunggu service siap lalu menampilkan URL Store/Admin.
+Optional (tanpa auto buka browser):
+
+```bash
+OPEN_BROWSER=false ./langsung-pakai.sh local
+```
+
+Script ini akan menunggu service siap, menampilkan URL Store/Admin dengan jelas, dan mencoba membuka browser otomatis.
+
+Jika kamu hanya lihat tulisan di terminal, itu normal. Tinggal klik/copy URL yang muncul.
 
 ## 1) Jalankan Local
 
