@@ -10,6 +10,20 @@ Web store top up game dengan tampilan modern (mirip referensi), lengkap dengan:
 
 ## Menjalankan Project (Local)
 
+## Quick Start (Sekali Jalan)
+
+Dari root project, jalankan:
+
+```bash
+./run.sh
+```
+
+Script ini akan:
+
+- cek Node.js dan npm
+- install dependency backend jika belum ada
+- menjalankan server di `http://localhost:3000`
+
 ```bash
 cd backend
 npm install
