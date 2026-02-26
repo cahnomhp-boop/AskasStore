@@ -67,31 +67,22 @@ const calculateSummary = () => {
 
 const upsertCartItem = item => {
   const existing = state.cart.find(entry => entry.gameId === item.gameId && entry.packageId === item.packageId)
-  if (existing) {
-    existing.quantity += item.quantity
-  } else {
-    state.cart.push(item)
-  }
+  if (existing) existing.quantity += item.quantity
+  else state.cart.push(item)
 }
 
-const updateQty = (index, change) => {
+window.updateQty = (index, change) => {
   const current = state.cart[index]
   if (!current) return
-
   current.quantity += change
-  if (current.quantity <= 0) {
-    state.cart.splice(index, 1)
-  }
+  if (current.quantity <= 0) state.cart.splice(index, 1)
   renderCart()
 }
 
-const removeItem = index => {
+window.removeItem = index => {
   state.cart.splice(index, 1)
   renderCart()
 }
-
-window.updateQty = updateQty
-window.removeItem = removeItem
 
 const renderCart = () => {
   if (!state.cart.length) {
@@ -111,9 +102,7 @@ const renderCart = () => {
             <button type="button" class="danger" onclick="removeItem(${index})">Hapus</button>
           </div>
         </div>
-        <div>
-          <b>${idr(item.price * item.quantity)}</b>
-        </div>
+        <b>${idr(item.price * item.quantity)}</b>
       </div>
       `
       )
@@ -139,6 +128,7 @@ const renderOrders = () => {
         <div>
           <b>${order.id}</b>
           <p>${new Date(order.createdAt).toLocaleString("id-ID")}</p>
+          ${order.payment?.redirectUrl ? `<a class="pay-link" href="${order.payment.redirectUrl}" target="_blank">Bayar sekarang</a>` : ""}
         </div>
         <div>
           <span class="status ${order.status}">${order.status}</span>
@@ -160,7 +150,6 @@ const loadOrders = async () => {
 window.quickAdd = gameId => {
   const game = state.games.find(item => item.id === gameId)
   const pkg = game.packages[0]
-
   upsertCartItem({
     gameId: game.id,
     gameTitle: game.title,
@@ -183,10 +172,7 @@ window.showDetail = slug => {
     <p>${game.description}</p>
     <div class="detail-packages">
       ${game.packages
-        .map(
-          pkg =>
-            `<button onclick="addPackage('${game.id}','${pkg.id}')">${pkg.name} • ${idr(pkg.price)}</button>`
-        )
+        .map(pkg => `<button onclick="addPackage('${game.id}','${pkg.id}')">${pkg.name} • ${idr(pkg.price)}</button>`)
         .join("")}
     </div>
   `
@@ -243,14 +229,18 @@ document.getElementById("checkout-form").addEventListener("submit", async event 
   const data = await res.json()
   checkoutMsg.textContent = data.message
 
-  if (res.ok) {
-    state.cart = []
-    state.activePromo = null
-    document.getElementById("promo-code").value = ""
-    event.target.reset()
-    renderCart()
-    await loadOrders()
+  if (!res.ok) return
+
+  if (data.paymentUrl) {
+    checkoutMsg.innerHTML = `${data.message} — <a class="pay-link" href="${data.paymentUrl}" target="_blank">Lanjut bayar Midtrans</a>`
   }
+
+  state.cart = []
+  state.activePromo = null
+  document.getElementById("promo-code").value = ""
+  event.target.reset()
+  renderCart()
+  await loadOrders()
 })
 
 document.getElementById("scroll-games").addEventListener("click", () => {

@@ -16,6 +16,11 @@ fi
 
 cd "$BACKEND_DIR"
 
+if [ ! -f .env ] && [ -f .env.example ]; then
+  echo "[INFO] .env tidak ditemukan, membuat dari .env.example"
+  cp .env.example .env
+fi
+
 if [ ! -d node_modules ]; then
   echo "[INFO] node_modules belum ada, menjalankan npm install..."
   npm install

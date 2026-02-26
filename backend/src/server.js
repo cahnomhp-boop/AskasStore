@@ -2,12 +2,52 @@ require("dotenv").config()
 const express = require("express")
 const http = require("http")
 const path = require("path")
+const fs = require("fs")
+const crypto = require("crypto")
 const cors = require("cors")
+const helmet = require("helmet")
+const morgan = require("morgan")
+const rateLimit = require("express-rate-limit")
+const midtransClient = require("midtrans-client")
 const { Server } = require("socket.io")
 
 const app = express()
+app.use(helmet())
 app.use(cors())
-app.use(express.json())
+app.use(morgan("dev"))
+app.use(express.json({ limit: "1mb" }))
+app.use(
+  "/api",
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 300,
+    standardHeaders: true,
+    legacyHeaders: false
+  })
+)
+
+const PORT = Number(process.env.PORT || 3000)
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`
+const MIDTRANS_SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || ""
+const MIDTRANS_CLIENT_KEY = process.env.MIDTRANS_CLIENT_KEY || ""
+const MIDTRANS_IS_PRODUCTION = process.env.MIDTRANS_IS_PRODUCTION === "true"
+
+const dataDir = path.join(__dirname, "../data")
+const ordersFile = path.join(dataDir, "orders.json")
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
+if (!fs.existsSync(ordersFile)) fs.writeFileSync(ordersFile, "[]")
+
+const readOrders = () => {
+  try {
+    return JSON.parse(fs.readFileSync(ordersFile, "utf8"))
+  } catch {
+    return []
+  }
+}
+
+const writeOrders = orders => {
+  fs.writeFileSync(ordersFile, JSON.stringify(orders, null, 2))
+}
 
 const catalog = [
   {
@@ -89,19 +129,9 @@ const catalog = [
 ]
 
 const promos = [
-  {
-    code: "WELCOME10",
-    label: "Diskon 10% pembelian pertama",
-    percentage: 10
-  },
-  {
-    code: "GAMENIGHT15",
-    label: "Diskon 15% jam 20:00-23:00",
-    percentage: 15
-  }
+  { code: "WELCOME10", label: "Diskon 10% pembelian pertama", percentage: 10 },
+  { code: "GAMENIGHT15", label: "Diskon 15% jam 20:00-23:00", percentage: 15 }
 ]
-
-const orders = []
 
 const toCurrency = amount =>
   new Intl.NumberFormat("id-ID", {
@@ -111,54 +141,83 @@ const toCurrency = amount =>
   }).format(amount)
 
 const computeDashboard = () => {
+  const orders = readOrders()
   const revenue = orders
-    .filter(order => order.status !== "cancelled")
+    .filter(order => ["paid", "processing", "completed"].includes(order.status))
     .reduce((total, order) => total + order.total, 0)
 
   return {
     games: catalog.length,
     totalOrders: orders.length,
-    pendingOrders: orders.filter(order => order.status === "pending").length,
+    pendingOrders: orders.filter(order => ["pending", "waiting_payment"].includes(order.status)).length,
     completedOrders: orders.filter(order => order.status === "completed").length,
     revenue,
     revenueLabel: toCurrency(revenue)
   }
 }
 
-app.use("/store", express.static(path.join(__dirname, "../../frontend")))
-app.use("/admin", express.static(path.join(__dirname, "../../admin")))
-app.get("/", (_, res) => {
-  res.redirect("/store")
-})
+const mapMidtransToStatus = txStatus => {
+  if (["settlement", "capture"].includes(txStatus)) return "paid"
+  if (["pending"].includes(txStatus)) return "waiting_payment"
+  if (["expire", "cancel", "deny"].includes(txStatus)) return "cancelled"
+  return "pending"
+}
 
-app.get("/api/health", (_, res) => {
-  res.json({ status: "OK", service: "AskasStore API" })
-})
+const createMidtransTransaction = async order => {
+  if (!MIDTRANS_SERVER_KEY) return null
 
-app.get("/api/games", (_, res) => {
-  res.json({ games: catalog, promos })
-})
+  const snap = new midtransClient.Snap({
+    isProduction: MIDTRANS_IS_PRODUCTION,
+    serverKey: MIDTRANS_SERVER_KEY,
+    clientKey: MIDTRANS_CLIENT_KEY
+  })
 
-app.get("/api/games/:slug", (req, res) => {
-  const game = catalog.find(item => item.slug === req.params.slug)
-  if (!game) {
-    return res.status(404).json({ message: "Game tidak ditemukan" })
+  const parameter = {
+    transaction_details: {
+      order_id: order.id,
+      gross_amount: order.total
+    },
+    customer_details: {
+      first_name: order.customerName,
+      email: order.email
+    },
+    callbacks: {
+      finish: `${BASE_URL}/store`
+    }
   }
 
+  return snap.createTransaction(parameter)
+}
+
+app.use("/store", express.static(path.join(__dirname, "../../frontend")))
+app.use("/admin", express.static(path.join(__dirname, "../../admin")))
+app.get("/", (_, res) => res.redirect("/store"))
+
+app.get("/api/health", (_, res) => {
+  res.json({
+    status: "OK",
+    service: "AskasStore API",
+    paymentGateway: MIDTRANS_SERVER_KEY ? "midtrans-configured" : "manual-mode"
+  })
+})
+
+app.get("/api/games", (_, res) => res.json({ games: catalog, promos }))
+app.get("/api/games/:slug", (req, res) => {
+  const game = catalog.find(item => item.slug === req.params.slug)
+  if (!game) return res.status(404).json({ message: "Game tidak ditemukan" })
   return res.json({ game })
 })
 
 app.get("/api/orders", (_, res) => {
-  res.json({ orders: [...orders].reverse() })
+  res.json({ orders: [...readOrders()].reverse() })
 })
 
 app.get("/api/dashboard", (_, res) => {
   res.json({ dashboard: computeDashboard() })
 })
 
-app.post("/api/orders", (req, res) => {
+app.post("/api/orders", async (req, res) => {
   const { customerName, email, paymentMethod, items, promoCode } = req.body
-
   if (!customerName || !email || !paymentMethod || !Array.isArray(items) || !items.length) {
     return res.status(400).json({ message: "Data pesanan belum lengkap" })
   }
@@ -169,22 +228,20 @@ app.post("/api/orders", (req, res) => {
       if (!game) return null
       const pkg = game.packages.find(entry => entry.id === item.packageId)
       if (!pkg) return null
-
+      const quantity = Math.max(1, Number(item.quantity) || 1)
       return {
         gameId: game.id,
         gameTitle: game.title,
         packageId: pkg.id,
         packageName: pkg.name,
         price: pkg.price,
-        quantity: Math.max(1, Number(item.quantity) || 1),
-        subtotal: pkg.price * (Math.max(1, Number(item.quantity) || 1))
+        quantity,
+        subtotal: pkg.price * quantity
       }
     })
     .filter(Boolean)
 
-  if (!normalizedItems.length) {
-    return res.status(400).json({ message: "Item pesanan tidak valid" })
-  }
+  if (!normalizedItems.length) return res.status(400).json({ message: "Item pesanan tidak valid" })
 
   const subtotal = normalizedItems.reduce((total, item) => total + item.subtotal, 0)
   const promo = promos.find(item => item.code === promoCode)
@@ -201,42 +258,90 @@ app.post("/api/orders", (req, res) => {
     total: subtotal - discount,
     totalLabel: toCurrency(subtotal - discount),
     items: normalizedItems,
-    status: "pending",
+    status: paymentMethod === "Midtrans Snap" ? "waiting_payment" : "pending",
+    payment: null,
     createdAt: new Date().toISOString()
   }
 
+  if (paymentMethod === "Midtrans Snap") {
+    if (!MIDTRANS_SERVER_KEY) {
+      return res.status(400).json({ message: "Payment Midtrans belum dikonfigurasi di server" })
+    }
+
+    try {
+      const transaction = await createMidtransTransaction(order)
+      order.payment = {
+        gateway: "midtrans",
+        token: transaction.token,
+        redirectUrl: transaction.redirect_url,
+        transactionStatus: "pending"
+      }
+    } catch (error) {
+      return res.status(502).json({ message: `Gagal membuat transaksi payment gateway: ${error.message}` })
+    }
+  }
+
+  const orders = readOrders()
   orders.push(order)
+  writeOrders(orders)
   io.emit("order:new", order)
 
-  return res.status(201).json({ message: "Pesanan berhasil dibuat", order })
+  return res.status(201).json({
+    message: "Pesanan berhasil dibuat",
+    order,
+    paymentUrl: order.payment?.redirectUrl || null
+  })
 })
 
 app.patch("/api/orders/:id/status", (req, res) => {
   const { status } = req.body
+  const allowed = ["pending", "waiting_payment", "paid", "processing", "completed", "cancelled"]
+  if (!allowed.includes(status)) return res.status(400).json({ message: "Status tidak valid" })
+
+  const orders = readOrders()
   const order = orders.find(entry => entry.id === req.params.id)
-
-  if (!order) {
-    return res.status(404).json({ message: "Order tidak ditemukan" })
-  }
-
-  if (!["pending", "processing", "completed", "cancelled"].includes(status)) {
-    return res.status(400).json({ message: "Status tidak valid" })
-  }
+  if (!order) return res.status(404).json({ message: "Order tidak ditemukan" })
 
   order.status = status
+  writeOrders(orders)
   io.emit("order:updated", order)
-
   return res.json({ message: "Status order diperbarui", order })
+})
+
+app.post("/api/payments/midtrans/notification", (req, res) => {
+  const payload = req.body
+  const signatureKey = payload.signature_key
+  const expected = crypto
+    .createHash("sha512")
+    .update(`${payload.order_id}${payload.status_code}${payload.gross_amount}${MIDTRANS_SERVER_KEY}`)
+    .digest("hex")
+
+  if (!signatureKey || signatureKey !== expected) {
+    return res.status(401).json({ message: "Signature tidak valid" })
+  }
+
+  const orders = readOrders()
+  const order = orders.find(entry => entry.id === payload.order_id)
+  if (!order) return res.status(404).json({ message: "Order tidak ditemukan" })
+
+  order.status = mapMidtransToStatus(payload.transaction_status)
+  order.payment = {
+    ...(order.payment || {}),
+    gateway: "midtrans",
+    transactionStatus: payload.transaction_status,
+    fraudStatus: payload.fraud_status || null,
+    paidAt: ["settlement", "capture"].includes(payload.transaction_status) ? new Date().toISOString() : null
+  }
+
+  writeOrders(orders)
+  io.emit("order:updated", order)
+  return res.json({ received: true })
 })
 
 const server = http.createServer(app)
 const io = new Server(server, { cors: { origin: "*" } })
+io.on("connection", socket => socket.emit("dashboard:init", computeDashboard()))
 
-io.on("connection", socket => {
-  socket.emit("dashboard:init", computeDashboard())
-})
-
-const PORT = Number(process.env.PORT || 3000)
 server.listen(PORT, () => {
   console.log(`API running on ${PORT}`)
 })

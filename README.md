@@ -1,47 +1,69 @@
-# AskasStore
+# AskasStore (Production Ready Starter)
 
-Web store top up game dengan tampilan modern (mirip referensi), lengkap dengan:
+Web store top up game dengan fitur production baseline:
 
-- Landing page store + katalog game + promo.
-- Detail game dan paket top up.
-- Shopping cart + ubah qty + hapus item + kode promo + checkout.
-- Riwayat pesanan real-time (Socket.IO).
-- Admin dashboard untuk memantau statistik dan update status order.
+- Storefront + admin dashboard real-time (Socket.IO).
+- Checkout dengan opsi payment manual atau **Midtrans Snap**.
+- Persistensi order ke file JSON (`backend/data/orders.json`) jadi data tidak hilang saat restart aplikasi.
+- API hardening dasar: `helmet`, `morgan`, dan rate limit.
+- Siap dijalankan lokal, Docker Compose, atau dipublish ke VPS.
 
-## Menjalankan Project (Local)
-
-## Quick Start (Sekali Jalan)
-
-Dari root project, jalankan:
+## 1) Jalankan Local
 
 ```bash
 ./run.sh
 ```
 
-Script ini akan:
-
-- cek Node.js dan npm
-- install dependency backend jika belum ada
-- menjalankan server di `http://localhost:3000`
+Atau manual:
 
 ```bash
 cd backend
 npm install
+cp .env.example .env
 npm start
 ```
 
-Setelah server hidup:
+Buka:
 
 - Store: `http://localhost:3000/store`
 - Admin: `http://localhost:3000/admin`
 
-## Menjalankan dengan Docker Compose
+## 2) Konfigurasi Payment Midtrans
+
+Isi `.env` di folder `backend/`:
+
+```env
+PORT=3000
+BASE_URL=http://localhost:3000
+MIDTRANS_SERVER_KEY=SB-Mid-server-xxxx
+MIDTRANS_CLIENT_KEY=SB-Mid-client-xxxx
+MIDTRANS_IS_PRODUCTION=false
+```
+
+Jika `MIDTRANS_SERVER_KEY` kosong, sistem tetap jalan di mode manual (tanpa redirect payment gateway).
+
+Webhook Midtrans diarahkan ke:
+
+- `POST /api/payments/midtrans/notification`
+
+## 3) Jalankan dengan Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-## API Endpoint Utama
+## 4) Publish ke Public (VPS)
+
+Ringkas langkah production:
+
+1. Deploy aplikasi ke VPS.
+2. Jalankan lewat Docker Compose atau PM2.
+3. Pasang Nginx reverse proxy ke `localhost:3000`.
+4. Pasang SSL (Let's Encrypt).
+5. Set `BASE_URL=https://domainkamu.com` agar callback payment valid.
+6. Atur URL webhook Midtrans ke `https://domainkamu.com/api/payments/midtrans/notification`.
+
+## API Endpoint
 
 - `GET /api/health`
 - `GET /api/games`
@@ -50,3 +72,4 @@ docker compose up --build
 - `GET /api/dashboard`
 - `POST /api/orders`
 - `PATCH /api/orders/:id/status`
+- `POST /api/payments/midtrans/notification`

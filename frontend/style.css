@@ -110,3 +110,7 @@ dialog {
 .qty-actions { display:flex; align-items:center; gap:6px; margin-top:6px; }
 .qty-actions button { border:0; border-radius:6px; padding:4px 8px; cursor:pointer; background:#2b3a8a; color:white; }
 .qty-actions .danger { background:#8b1d3f; }
+
+.status.waiting_payment { background: #f97316; }
+.status.paid { background: #22c55e; }
+.pay-link { color: #7dd3fc; text-decoration: none; font-size: .85rem; display:inline-block; margin-top:4px; }

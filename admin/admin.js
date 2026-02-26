@@ -30,7 +30,7 @@ const renderOrders = orders => {
       <div>
         <p><b>${order.totalLabel}</b></p>
         <select onchange="updateStatus('${order.id}', this.value)">
-          ${["pending", "processing", "completed", "cancelled"]
+          ${["pending", "waiting_payment", "paid", "processing", "completed", "cancelled"]
             .map(status => `<option value="${status}" ${order.status === status ? "selected" : ""}>${status}</option>`)
             .join("")}
         </select>
