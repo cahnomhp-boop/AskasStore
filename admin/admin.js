@@ -1,4 +1,4 @@
-const API = "http://localhost:3000/api"
+const API = "/api"
 const statsEl = document.getElementById("stats")
 const ordersEl = document.getElementById("orders")
 
@@ -63,7 +63,7 @@ window.updateStatus = async (id, status) => {
   load()
 }
 
-const socket = io("http://localhost:3000")
+const socket = io(window.location.origin)
 socket.on("order:new", load)
 socket.on("order:updated", load)
 socket.on("dashboard:init", load)

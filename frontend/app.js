@@ -1,4 +1,4 @@
-const API = "http://localhost:3000/api"
+const API = "/api"
 const state = {
   games: [],
   promos: [],
@@ -65,20 +65,53 @@ const calculateSummary = () => {
   return { subtotal, discount, total: subtotal - discount }
 }
 
+const upsertCartItem = item => {
+  const existing = state.cart.find(entry => entry.gameId === item.gameId && entry.packageId === item.packageId)
+  if (existing) {
+    existing.quantity += item.quantity
+  } else {
+    state.cart.push(item)
+  }
+}
+
+const updateQty = (index, change) => {
+  const current = state.cart[index]
+  if (!current) return
+
+  current.quantity += change
+  if (current.quantity <= 0) {
+    state.cart.splice(index, 1)
+  }
+  renderCart()
+}
+
+const removeItem = index => {
+  state.cart.splice(index, 1)
+  renderCart()
+}
+
+window.updateQty = updateQty
+window.removeItem = removeItem
+
 const renderCart = () => {
   if (!state.cart.length) {
     cartItems.innerHTML = '<p class="muted">Belum ada item di keranjang.</p>'
   } else {
     cartItems.innerHTML = state.cart
       .map(
-        item => `
+        (item, index) => `
       <div class="cart-item">
         <div>
           <strong>${item.gameTitle}</strong>
           <p>${item.packageName}</p>
+          <div class="qty-actions">
+            <button type="button" onclick="updateQty(${index}, -1)">-</button>
+            <span>${item.quantity}</span>
+            <button type="button" onclick="updateQty(${index}, 1)">+</button>
+            <button type="button" class="danger" onclick="removeItem(${index})">Hapus</button>
+          </div>
         </div>
         <div>
-          <p>${item.quantity}x</p>
           <b>${idr(item.price * item.quantity)}</b>
         </div>
       </div>
@@ -128,7 +161,7 @@ window.quickAdd = gameId => {
   const game = state.games.find(item => item.id === gameId)
   const pkg = game.packages[0]
 
-  state.cart.push({
+  upsertCartItem({
     gameId: game.id,
     gameTitle: game.title,
     packageId: pkg.id,
@@ -163,7 +196,7 @@ window.showDetail = slug => {
 window.addPackage = (gameId, packageId) => {
   const game = state.games.find(item => item.id === gameId)
   const pkg = game.packages.find(item => item.id === packageId)
-  state.cart.push({
+  upsertCartItem({
     gameId,
     gameTitle: game.title,
     packageId,
@@ -182,6 +215,7 @@ document.getElementById("close-detail").addEventListener("click", () => {
 document.getElementById("apply-promo").addEventListener("click", () => {
   const code = document.getElementById("promo-code").value.trim().toUpperCase()
   state.activePromo = state.promos.find(item => item.code === code) || null
+  checkoutMsg.textContent = state.activePromo ? `Promo ${state.activePromo.code} diterapkan` : "Kode promo tidak ditemukan"
   renderCart()
 })
 
@@ -223,7 +257,7 @@ document.getElementById("scroll-games").addEventListener("click", () => {
   document.getElementById("games").scrollIntoView({ behavior: "smooth" })
 })
 
-const socket = io("http://localhost:3000")
+const socket = io(window.location.origin)
 socket.on("order:new", loadOrders)
 socket.on("order:updated", loadOrders)
 
