@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AskasStore - Game Top Up</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎮 AskasStore</div>
+    <nav>
+      <a href="#home">Home</a>
+      <a href="#games">Games</a>
+      <a href="#promo">Promo</a>
+      <a href="#orders">Pesanan</a>
+      <a href="/admin">Admin</a>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <section class="main-content">
+      <article class="hero" id="home">
+        <div>
+          <p class="chip">Big Discount Today</p>
+          <h1>Top up game favoritmu, cepat & otomatis.</h1>
+          <p>Dapatkan voucher promo, paket termurah, dan checkout instan seperti web store modern.</p>
+          <button id="scroll-games">Browse Games</button>
+        </div>
+      </article>
+
+      <section id="games" class="panel">
+        <div class="panel-head">
+          <h2>Popular Games</h2>
+          <span id="game-count"></span>
+        </div>
+        <div id="games-grid" class="cards"></div>
+      </section>
+
+      <section id="promo" class="panel">
+        <div class="panel-head">
+          <h2>Promo Aktif</h2>
+        </div>
+        <div id="promo-list" class="promo-list"></div>
+      </section>
+
+      <section id="orders" class="panel">
+        <div class="panel-head">
+          <h2>Pesanan Saya</h2>
+        </div>
+        <div id="order-list" class="orders"></div>
+      </section>
+    </section>
+
+    <aside class="cart">
+      <h3>Shopping Cart</h3>
+      <div id="cart-items"></div>
+      <div class="promo-input">
+        <input id="promo-code" placeholder="Kode promo (opsional)" />
+        <button id="apply-promo">Apply</button>
+      </div>
+      <div class="summary">
+        <p>Subtotal: <b id="subtotal">Rp0</b></p>
+        <p>Diskon: <b id="discount">Rp0</b></p>
+        <p class="total">Total: <b id="total">Rp0</b></p>
+      </div>
+      <form id="checkout-form">
+        <input required id="customer-name" placeholder="Nama lengkap" />
+        <input required id="customer-email" type="email" placeholder="Email" />
+        <select id="payment-method" required>
+          <option value="">Pilih pembayaran</option>
+          <option>E-Wallet</option>
+          <option>Virtual Account</option>
+          <option>QRIS</option>
+        </select>
+        <button type="submit">Checkout Sekarang</button>
+      </form>
+      <p id="checkout-msg"></p>
+    </aside>
+  </main>
+
+  <dialog id="detail-dialog">
+    <div id="detail-content"></div>
+    <button id="close-detail">Tutup</button>
+  </dialog>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
