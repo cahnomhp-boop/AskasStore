@@ -8,6 +8,22 @@ Web store top up game dengan fitur production baseline:
 - API hardening dasar: `helmet`, `morgan`, dan rate limit.
 - Siap dijalankan lokal, Docker Compose, atau dipublish ke VPS.
 
+## 🔥 Langsung Pakai (1 command)
+
+Dari root project:
+
+```bash
+./langsung-pakai.sh local
+```
+
+Atau langsung via Docker:
+
+```bash
+./langsung-pakai.sh docker
+```
+
+Script ini akan menunggu service siap lalu menampilkan URL Store/Admin.
+
 ## 1) Jalankan Local
 
 ```bash
